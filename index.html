@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -339,4 +340,142 @@
 
     window.duplicateSelected = () => {
         if(!selectedObject) return;
-        const clone = spawn(selectedObject.userData.type,
+        const clone = spawn(selectedObject.userData.type, selectedObject.material.color.getHex());
+        clone.position.copy(selectedObject.position).add(new THREE.Vector3(1, 0, 1));
+        clone.scale.copy(selectedObject.scale); clone.userData.scripts = JSON.parse(JSON.stringify(selectedObject.userData.scripts));
+    };
+
+    function select(obj) {
+        selectedObject = obj; selectedGUI = null;
+        document.getElementById('prop-ui-main').style.display = 'block';
+        document.getElementById('prop-gui-main').style.display = 'none';
+        if(obj) { transform.attach(obj); updateUIFields(obj); } else transform.detach();
+        updateExplorer();
+    }
+
+    function updateExplorer() {
+        const list = document.getElementById('objects-list'); list.innerHTML = "";
+        gameObjects.forEach(obj => {
+            const div = document.createElement('div');
+            div.className = `tree-item ${selectedObject === obj ? 'selected' : ''}`;
+            div.innerHTML = `${obj.userData.type === 'spawn' ? "🟢" : "🧊"} ${obj.name}`;
+            div.onclick = () => select(obj);
+            list.appendChild(div);
+            obj.userData.scripts.forEach((s, i) => {
+                const sd = document.createElement('div'); sd.className = 'tree-child tree-item';
+                sd.innerHTML = `📜 Script_${i+1}`; sd.onclick = (e) => { e.stopPropagation(); openScript(obj, i); };
+                list.appendChild(sd);
+            });
+        });
+        guis.forEach(g => {
+            const div = document.createElement('div');
+            div.className = `tree-item ${selectedGUI === g ? 'selected' : ''}`;
+            div.innerHTML = `🖼️ GUI_${g.type}`;
+            div.style.color = "#ff9800";
+            div.onclick = () => selectGUI(g);
+            list.appendChild(div);
+        });
+    }
+
+    let activeScr = null;
+    window.addScriptToSelected = () => { if(!selectedObject) return; selectedObject.userData.scripts.push({ code: "-- Nova Lógica" }); updateExplorer(); };
+    window.openScript = (obj, idx) => { activeScr = obj.userData.scripts[idx]; document.getElementById('code-editor').innerText = activeScr.code; document.getElementById('script-window').style.display = 'flex'; };
+    window.saveAndCloseScript = () => { if(activeScr) activeScr.code = document.getElementById('code-editor').innerText; document.getElementById('script-window').style.display = 'none'; };
+
+    function updateUIFields(obj) {
+        document.getElementById('obj-name').value = obj.name;
+        document.getElementById('pos-x').value = obj.position.x.toFixed(2); document.getElementById('pos-y').value = obj.position.y.toFixed(2); document.getElementById('pos-z').value = obj.position.z.toFixed(2);
+        document.getElementById('sca-x').value = obj.scale.x.toFixed(2); document.getElementById('sca-y').value = obj.scale.y.toFixed(2); document.getElementById('sca-z').value = obj.scale.z.toFixed(2);
+    }
+    const sync = () => {
+        if(!selectedObject) return;
+        selectedObject.name = document.getElementById('obj-name').value;
+        selectedObject.position.set(parseFloat(document.getElementById('pos-x').value)||0, parseFloat(document.getElementById('pos-y').value)||0, parseFloat(document.getElementById('pos-z').value)||0);
+        selectedObject.scale.set(parseFloat(document.getElementById('sca-x').value)||1, parseFloat(document.getElementById('sca-y').value)||1, parseFloat(document.getElementById('sca-z').value)||1);
+        updateExplorer();
+    };
+    ['obj-name', 'pos-x', 'pos-y', 'pos-z', 'sca-x', 'sca-y', 'sca-z'].forEach(id => document.getElementById(id).addEventListener('input', sync));
+
+    // --- RUNTIME ---
+    let velocityY = 0;
+    window.startTest = () => {
+        if(!spawnPoint) return alert("Crie um SPAWN!");
+        isTesting = true; document.getElementById('play-bar').style.display='none'; document.getElementById('test-ui').style.display='block';
+        document.getElementById('game-hud').style.display='block';
+        transform.detach(); grid.visible = false;
+        playerPos.position.copy(spawnPoint.position).y += 1.6;
+        velocityY = 0; yaw = 0; pitch = 0;
+
+        // Montar HUD
+        const hud = document.getElementById('game-hud');
+        hud.innerHTML = "";
+        guis.forEach(g => {
+            const el = document.createElement('div');
+            el.className = "runtime-gui-el";
+            el.style.left = g.x+"px"; el.style.top = g.y+"px";
+            el.style.width = g.w+"px"; el.style.height = g.h+"px";
+            el.id = "runtime-gui-"+g.id;
+            
+            if(g.type === 'frame') { 
+                el.style.background = g.color; 
+                el.style.opacity = "0.5";
+            } else { 
+                el.style.color = g.color; 
+                el.style.fontWeight = "bold"; 
+                if(g.mode === 'fixed') el.innerText = g.value;
+            }
+            hud.appendChild(el);
+        });
+    };
+    window.stopTest = () => { isTesting = false; document.getElementById('play-bar').style.display='flex'; document.getElementById('test-ui').style.display='none'; document.getElementById('game-hud').style.display='none'; grid.visible = true; };
+    document.getElementById('btn-jump').addEventListener('touchstart', () => { 
+        const jPower = parseFloat(document.getElementById('conf-jump').value);
+        if(playerPos.position.y <= 1.61) velocityY = jPower; 
+    });
+
+    function animate() {
+        requestAnimationFrame(animate);
+        if(isTesting) {
+            const speed = parseFloat(document.getElementById('conf-speed').value);
+            const grav = parseFloat(document.getElementById('conf-grav').value);
+            const renderDist = parseFloat(document.getElementById('conf-render').value);
+
+            playerPos.translateZ(joyY * speed); playerPos.translateX(joyX * speed);
+            velocityY -= grav; playerPos.position.y += velocityY;
+            const ray = new THREE.Raycaster(playerPos.position, new THREE.Vector3(0,-1,0), 0, 1.7);
+            const hits = ray.intersectObjects(gameObjects);
+            if(hits.length > 0 && velocityY <= 0) { playerPos.position.y = hits[0].point.y + 1.6; velocityY = 0; }
+            
+            gameObjects.forEach(o => { o.visible = o.position.distanceTo(playerPos.position) < renderDist; });
+
+            // Atualizar HUD via Variáveis (Modo var)
+            guis.forEach(g => {
+                if(g.mode === 'var' && g.type === 'text') {
+                    const el = document.getElementById("runtime-gui-"+g.id);
+                    if(el) {
+                        if(g.value === 'jump') el.innerText = "Pulo: " + document.getElementById('conf-jump').value;
+                        else if(g.value === 'speed') el.innerText = "Vel: " + speed;
+                    }
+                }
+            });
+
+            camera.position.copy(playerPos.position);
+            camera.rotation.set(pitch, yaw, 0, 'YXZ');
+            if(playerPos.position.y < -15) stopTest();
+        } else orbit.update();
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    window.setMode = (m) => transform.setMode(m);
+    window.addEventListener('pointerdown', (e) => {
+        if(e.clientX > window.innerWidth - 300 || isTesting) return;
+        const mouse = new THREE.Vector2((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(mouse, camera);
+        const hit = raycaster.intersectObjects(gameObjects);
+        if(hit.length > 0) select(hit[0].object);
+    });
+</script>
+</body>
+</html>
