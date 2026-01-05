@@ -1,4 +1,4 @@
-🚀 Engine Graphic v3 — Beta Final
+# 🚀 Engine Graphic v0.5 — Beta Final
 Uma engine experimental focada em liberdade total do criador, sem física obrigatória, sem servidor e com projetos portáveis em texto.
 Engine Studio v3 é uma engine 3D leve, feita em HTML + JavaScript, pensada para mobile, web e prototipagem criativa, onde o usuário controla tudo: física, lógica, regras e comportamento.
 ✨ Principais Ideias
@@ -123,3 +123,8 @@ Projetos, ideias e compartilhamentos serão feitos via Discord.
 # 🧾 Licença
 Código aberto para estudo, modificação e experimentação.
 Leia a licença antes de usar comercialmente
+
+
+# Aviso imediato
+A qualquer momento a engine pode cair ou ser desativada para qualquer atualização ou teste.
+Deseja uma nova versão? tenho projetos de adição de IA de geração de objetos para a versão pro que futuramente será divulgada no discord oficial
